@@ -1,0 +1,16 @@
+# Сборка бинарника
+/bulletin-board
+
+# Файлы модулей
+/go.sum
+
+# Локальные данные
+data.json
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
