@@ -1,35 +1,21 @@
 package main
 
 import (
-	"bulletin-board/domain"
+	rest "bulletin-board/http"
 	"bulletin-board/storage"
-	"fmt"
+	"github.com/gorilla/mux"
+	"log"
+	"net/http"
 )
 
 func main() {
-	ad := domain.Ad{
-		Title:       "Телефон",
-		Description: "Iphone 16",
-		Price:       50000,
-		Contact:     "88234553535",
-	}
-	fs := storage.FileStore{}
-	fs.NewBasePath("data.json")
-	ad, err := fs.Create(ad)
-	if err != nil {
-		fmt.Println("ошибка", err)
-	} else {
-		fmt.Println(ad)
-	}
-	//
-	//err := fs.Update(ad)
-	//if err != nil {
-	//	fmt.Println("ошибка", err)
-	//}
-
-	//items, err := fs.List()
-	//if err != nil {
-	//	fmt.Println("ошибка", err)
-	//}
-	//fmt.Println(items)
+	r := mux.NewRouter()
+	store := storage.FileStore{}
+	store.NewBasePath("data.json")
+	r.HandleFunc("/ads", rest.AllAds(&store)).Methods("GET")
+	//r.HandleFunc("/ads/{id}", rest.GetById(&store)).Methods("GET")
+	r.HandleFunc("/ads", rest.Create(&store)).Methods("POST")
+	//r.HandleFunc("/ads", rest.Update(&store)).Methods("PUT")
+	//r.HandleFunc("/ads/{id}", rest.Delete(&store)).Methods("DELETE")
+	log.Fatal(http.ListenAndServe("localhost:8080", r))
 }

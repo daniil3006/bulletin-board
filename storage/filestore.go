@@ -4,7 +4,6 @@ import (
 	"bulletin-board/domain"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,10 +20,27 @@ func (f *FileStore) NewBasePath(path string) {
 	f.filePath = path
 }
 
-func (f *FileStore) List() ([]domain.Ad, error) {
+func (f *FileStore) GetAll() ([]domain.Ad, error) {
 	f.mu.Lock()
-	defer f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.readAll()
+}
+
+func (f *FileStore) GetById(ID int64) (domain.Ad, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	items, err := f.readAll()
+	if err != nil {
+		return domain.Ad{}, err
+	}
+
+	for _, item := range items {
+		if item.ID == ID {
+			return item, nil
+		}
+	}
+	return domain.Ad{}, ErrNotFound
 }
 
 func (f *FileStore) Create(ad domain.Ad) (domain.Ad, error) {
@@ -37,10 +53,10 @@ func (f *FileStore) Create(ad domain.Ad) (domain.Ad, error) {
 
 	var maxId int64
 	for _, item := range items {
-		maxId = max(maxId, item.Id)
+		maxId = max(maxId, item.ID)
 	}
 	maxId++
-	ad.Id = maxId
+	ad.ID = maxId
 
 	items = append(items, ad)
 	if err := f.writeAtomic(items); err != nil {
@@ -49,17 +65,17 @@ func (f *FileStore) Create(ad domain.Ad) (domain.Ad, error) {
 	return ad, nil
 }
 
-func (f *FileStore) Update(ad domain.Ad) error {
+func (f *FileStore) Update(ad domain.Ad) (domain.Ad, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	items, err := f.readAll()
 	if err != nil {
-		return err
+		return domain.Ad{}, err
 	}
 
 	updated := false
 	for i := range items {
-		if items[i].Id == ad.Id {
+		if items[i].ID == ad.ID {
 			updateItem(&items[i], &ad)
 			updated = true
 			break
@@ -67,13 +83,13 @@ func (f *FileStore) Update(ad domain.Ad) error {
 	}
 
 	if !updated {
-		return fmt.Errorf("ad with id = %d not found", ad.Id)
+		return domain.Ad{}, ErrNotFound
 	}
 
-	return f.writeAtomic(items)
+	return ad, f.writeAtomic(items)
 }
 
-func (f *FileStore) Delete(id int64) error {
+func (f *FileStore) Delete(ID int64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	items, err := f.readAll()
@@ -81,11 +97,11 @@ func (f *FileStore) Delete(id int64) error {
 		return err
 	}
 
-	newItems := make([]domain.Ad, len(items))
+	newItems := make([]domain.Ad, 0, len(items))
 
 	deleted := false
 	for _, item := range items {
-		if item.Id == id {
+		if item.ID == ID {
 			deleted = true
 			continue
 		}
@@ -93,7 +109,7 @@ func (f *FileStore) Delete(id int64) error {
 	}
 
 	if !deleted {
-		return fmt.Errorf("ad with id = %d not found", id)
+		return ErrNotFound
 	}
 
 	return f.writeAtomic(newItems)

@@ -1,9 +1,9 @@
 package domain
 
 type Ad struct {
-	Id          int64
-	Title       string
-	Description string
-	Price       int64
-	Contact     string
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Price       int64  `json:"price"`
+	Contact     string `json:"contact"`
 }

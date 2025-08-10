@@ -3,8 +3,9 @@ package storage
 import "bulletin-board/domain"
 
 type Store interface {
-	List() ([]domain.Ad, error)
+	GetAll() ([]domain.Ad, error)
+	GetById(ID int64) (domain.Ad, error)
 	Create(ad domain.Ad) (domain.Ad, error)
-	Update(ad domain.Ad) error
-	Delete(id int) error
+	Update(ad domain.Ad) (domain.Ad, error)
+	Delete(id int64) error
 }
