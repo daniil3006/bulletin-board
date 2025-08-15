@@ -1,8 +1,7 @@
-package http
+package api
 
 import (
-	"bulletin-board/domain"
-	"bulletin-board/storage"
+	"bulletin-board/internal/ad"
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
@@ -11,10 +10,10 @@ import (
 	"strconv"
 )
 
-func AllAds(store storage.Store) http.HandlerFunc {
+func GetAll(store ad.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		ads, err := store.GetAll()
+		ads, err := store.GetAll(r.Context())
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
@@ -24,20 +23,20 @@ func AllAds(store storage.Store) http.HandlerFunc {
 	}
 }
 
-func GetById(store storage.Store) http.HandlerFunc {
+func GetByID(store ad.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		params := mux.Vars(r)
-		ID, err := strconv.ParseInt(params["id"], 10, 64)
+		id, err := strconv.Atoi(params["id"])
 
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		ad, err := store.GetById(ID)
+		oneAd, err := store.GetByID(r.Context(), id)
 		if err != nil {
-			if errors.Is(err, storage.ErrNotFound) {
+			if errors.Is(err, ad.ErrNotFound) {
 				writeJSONError(w, http.StatusNotFound, err.Error())
 			} else {
 				writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -45,14 +44,14 @@ func GetById(store storage.Store) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(ad)
+		_ = json.NewEncoder(w).Encode(oneAd)
 	}
 }
 
-func Create(store storage.Store) http.HandlerFunc {
+func Create(store ad.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		var ad domain.Ad
+		var ad ad.Ad
 		err := json.NewDecoder(r.Body).Decode(&ad)
 
 		if err != nil {
@@ -64,7 +63,7 @@ func Create(store storage.Store) http.HandlerFunc {
 			return
 		}
 
-		ad, err = store.Create(ad)
+		ad, err = store.Create(r.Context(), ad)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "failed to create ad")
 		}
@@ -74,24 +73,29 @@ func Create(store storage.Store) http.HandlerFunc {
 	}
 }
 
-func Update(store storage.Store) http.HandlerFunc {
+func Update(store ad.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		var newAdd domain.Ad
-		err := json.NewDecoder(r.Body).Decode(&newAdd)
+		var newAdd ad.Ad
+
+		params := mux.Vars(r)
+		id, err := strconv.Atoi(params["id"])
+
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+
+		err = json.NewDecoder(r.Body).Decode(&newAdd)
 
 		if err = isValidateAd(newAdd); err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid ad")
 			return
 		}
 
-		ad, err := store.Update(newAdd)
+		updatedAd, err := store.Update(r.Context(), newAdd, id)
 		if err != nil {
-			if errors.Is(err, storage.ErrNotFound) {
+			if errors.Is(err, ad.ErrNotFound) {
 				writeJSONError(w, http.StatusNotFound, err.Error())
 			} else {
 				writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -99,22 +103,22 @@ func Update(store storage.Store) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(ad)
+		_ = json.NewEncoder(w).Encode(updatedAd)
 	}
 }
 
-func Delete(store storage.Store) http.HandlerFunc {
+func Delete(store ad.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		params := mux.Vars(r)
-		ID, err := strconv.ParseInt(params["id"], 10, 64)
+		id, err := strconv.Atoi(params["id"])
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid id")
 			return
 		}
-		err = store.Delete(ID)
+		err = store.Delete(r.Context(), id)
 		if err != nil {
-			if errors.Is(err, storage.ErrNotFound) {
+			if errors.Is(err, ad.ErrNotFound) {
 				writeJSONError(w, http.StatusNotFound, err.Error())
 			} else {
 				writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -131,9 +135,9 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	log.Printf("Status: %d | Message: %s", status, message)
 }
 
-func isValidateAd(ad domain.Ad) error {
-	if ad.Price <= 0 {
-		return storage.ErrInvalidAd
+func isValidateAd(checkAd ad.Ad) error {
+	if checkAd.Price <= 0 {
+		return ad.ErrInvalidAd
 	}
 	return nil
 }

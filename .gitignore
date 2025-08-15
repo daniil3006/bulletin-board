@@ -6,6 +6,7 @@
 
 # Локальные данные
 data.json
+.env
 
 # IDE
 .idea/
