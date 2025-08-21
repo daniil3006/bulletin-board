@@ -6,7 +6,7 @@ import (
 )
 
 type Repository interface {
-	GetAll(ctx context.Context) ([]Ad, error)
+	GetAll(context.Context) ([]Ad, error)
 	GetByID(ctx context.Context, ID int) (Ad, error)
 	Create(ctx context.Context, ad Ad) (Ad, error)
 	Update(ctx context.Context, ad Ad, id int) (Ad, error)

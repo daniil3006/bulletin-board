@@ -1,9 +1,9 @@
 package api
 
 import (
-	"bulletin-board/internal/ad"
-	"bulletin-board/internal/ad/dto"
-	"bulletin-board/internal/ad/service"
+	"bulletin-board/internal/user"
+	"bulletin-board/internal/user/dto"
+	"bulletin-board/internal/user/service"
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/mux"
@@ -13,23 +13,23 @@ import (
 )
 
 type Handler struct {
-	service service.Service
+	service *service.Service
 }
 
 func NewHandler(service service.Service) *Handler {
-	return &Handler{service: service}
+	return &Handler{service: &service}
 }
 
 func (h *Handler) GetAll() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		ads, err := h.service.GetAll(r.Context())
+		users, err := h.service.GetAll(r.Context())
 		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, err.Error())
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(ads)
+		_ = json.NewEncoder(w).Encode(users)
 	}
 }
 
@@ -38,15 +38,14 @@ func (h *Handler) GetByID() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		params := mux.Vars(r)
 		id, err := strconv.Atoi(params["id"])
-
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		oneAd, err := h.service.GetByID(r.Context(), id)
+		oneUser, err := h.service.GetByID(r.Context(), id)
 		if err != nil {
-			if errors.Is(err, ad.ErrNotFound) {
+			if errors.Is(err, user.ErrUserNotFound) {
 				writeJSONError(w, http.StatusNotFound, err.Error())
 			} else {
 				writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -54,58 +53,79 @@ func (h *Handler) GetByID() http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(oneAd)
+		_ = json.NewEncoder(w).Encode(oneUser)
+	}
+}
+
+func (h *Handler) GetUsersAds() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		params := mux.Vars(r)
+		id, err := strconv.Atoi(params["id"])
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		ads, err := h.service.GetUsersAds(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, user.ErrUserNotFound) {
+				writeJSONError(w, http.StatusNotFound, err.Error())
+			} else {
+				writeJSONError(w, http.StatusInternalServerError, err.Error())
+			}
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(ads)
 	}
 }
 
 func (h *Handler) Create() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		var requestAd dto.RequestAd
-		err := json.NewDecoder(r.Body).Decode(&requestAd)
-
+		var requestUser dto.RequestUser
+		err := json.NewDecoder(r.Body).Decode(&requestUser)
 		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, "invalid id")
+			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		ad, err := h.service.Create(r.Context(), requestAd)
+		responseUser, err := h.service.Create(r.Context(), requestUser)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(ad)
+		_ = json.NewEncoder(w).Encode(responseUser)
 	}
 }
 
 func (h *Handler) Update() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		var requestAd dto.RequestAd
-
+		var requestUser dto.RequestUser
 		params := mux.Vars(r)
 		id, err := strconv.Atoi(params["id"])
-
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		err = json.NewDecoder(r.Body).Decode(&requestAd)
+		err = json.NewDecoder(r.Body).Decode(&requestUser)
 
-		updatedAd, err := h.service.Update(r.Context(), requestAd, id)
 		if err != nil {
-			if errors.Is(err, ad.ErrNotFound) {
-				writeJSONError(w, http.StatusNotFound, err.Error())
-			} else {
-				writeJSONError(w, http.StatusInternalServerError, err.Error())
-			}
+			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		user, err := h.service.Update(r.Context(), requestUser, id)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(updatedAd)
+		_ = json.NewEncoder(w).Encode(user)
 	}
 }
 
@@ -115,16 +135,12 @@ func (h *Handler) Delete() http.HandlerFunc {
 		params := mux.Vars(r)
 		id, err := strconv.Atoi(params["id"])
 		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, "invalid id")
+			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		err = h.service.Delete(r.Context(), id)
 		if err != nil {
-			if errors.Is(err, ad.ErrNotFound) {
-				writeJSONError(w, http.StatusNotFound, err.Error())
-			} else {
-				writeJSONError(w, http.StatusInternalServerError, err.Error())
-			}
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -136,10 +152,3 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 	log.Printf("Status: %d | Message: %s", status, message)
 }
-
-//{
-//"title": "Дом",
-//"description": "Большой дом",
-//"price": 1000000,
-//"user_id": "2"
-//}
