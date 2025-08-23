@@ -5,10 +5,21 @@ import (
 	"bulletin-board/internal/user"
 	"bulletin-board/internal/user/dto"
 	"context"
+	"errors"
+	"github.com/dgrijalva/jwt-go"
+	"golang.org/x/crypto/bcrypt"
+	"time"
 )
+
+const signingKey = "iuNvi8sa5oiHOajKfn93hFL93gb"
 
 type Service struct {
 	repository user.Repository
+}
+
+type TokenClaims struct {
+	jwt.StandardClaims
+	UserId int `json:"user_id"`
 }
 
 func NewService(repository user.Repository) *Service {
@@ -58,11 +69,16 @@ func (s *Service) GetUsersAds(ctx context.Context, userId int) ([]responseDto.Re
 
 func (s *Service) Create(ctx context.Context, newUser dto.RequestUser) (dto.ResponseUser, error) {
 	user := dto.ToUser(newUser)
-	_, err := s.repository.Create(ctx, user)
+	hash, err := s.generatePasswordHash(user.Password)
 	if err != nil {
-		return dto.ResponseUser{}, nil
+		return dto.ResponseUser{}, err
 	}
-	return dto.ToDto(user), nil
+	user.Password = hash
+	createdUser, err := s.repository.Create(ctx, user)
+	if err != nil {
+		return dto.ResponseUser{}, err
+	}
+	return dto.ToDto(createdUser), nil
 }
 
 func (s *Service) Update(ctx context.Context, requestUser dto.RequestUser, id int) (dto.ResponseUser, error) {
@@ -82,4 +98,32 @@ func (s *Service) Delete(ctx context.Context, id int) error {
 		return user.ErrInvalidUserId
 	}
 	return s.repository.Delete(ctx, id)
+}
+
+func (s *Service) generatePasswordHash(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
+func (s *Service) GenerateToken(ctx context.Context, email string, password string) (string, error) {
+	user, err := s.repository.GetByEmail(ctx, email)
+	if err != nil {
+		return "", errors.New("user not found")
+	}
+
+	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return "", errors.New("invalid password")
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &TokenClaims{
+		jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(12 * time.Hour).Unix(),
+			IssuedAt:  time.Now().Unix(),
+		}, user.ID,
+	})
+
+	return token.SignedString([]byte(signingKey))
 }

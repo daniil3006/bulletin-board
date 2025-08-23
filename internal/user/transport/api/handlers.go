@@ -16,6 +16,11 @@ type Handler struct {
 	service *service.Service
 }
 
+type signInInput struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 func NewHandler(service service.Service) *Handler {
 	return &Handler{service: &service}
 }
@@ -101,12 +106,40 @@ func (h *Handler) Create() http.HandlerFunc {
 	}
 }
 
+func (h *Handler) SignIn() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		var requestUser signInInput
+		err := json.NewDecoder(r.Body).Decode(&requestUser)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		token, err := h.service.GenerateToken(r.Context(), requestUser.Email, requestUser.Password)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(token)
+	}
+}
+
 func (h *Handler) Update() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		var requestUser dto.RequestUser
 		params := mux.Vars(r)
 		id, err := strconv.Atoi(params["id"])
+
+		userId, ok := r.Context().Value("user_id").(int)
+		if !ok || userId != id {
+			writeJSONError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
@@ -134,6 +167,13 @@ func (h *Handler) Delete() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		params := mux.Vars(r)
 		id, err := strconv.Atoi(params["id"])
+
+		userId, ok := r.Context().Value("user_id").(int)
+		if !ok || userId != id {
+			writeJSONError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return

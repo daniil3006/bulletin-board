@@ -3,7 +3,7 @@ package main
 import (
 	"bulletin-board/internal/ad/repository/pgstore"
 	"bulletin-board/internal/ad/service"
-	"bulletin-board/internal/transport/api"
+	"bulletin-board/internal/ad/transport/api"
 	userPgstore "bulletin-board/internal/user/pgstore"
 	userServ "bulletin-board/internal/user/service"
 	userApi "bulletin-board/internal/user/transport/api"
@@ -48,5 +48,13 @@ func main() {
 	r := mux.NewRouter()
 	adHandler.NewRouter(r)
 	userHandler.NewRouter(r)
+
+	r.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		path, _ := route.GetPathTemplate()
+		methods, _ := route.GetMethods()
+		log.Printf("Route: %s Methods: %v", path, methods)
+		return nil
+	})
+
 	log.Fatal(http.ListenAndServe("localhost:8080", r))
 }

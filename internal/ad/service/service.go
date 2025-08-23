@@ -52,16 +52,29 @@ func (s *Service) Create(ctx context.Context, requestAd dto.RequestAd) (dto.Resp
 }
 
 func (s *Service) Update(ctx context.Context, requestAd dto.RequestAd, id int) (dto.ResponseAd, error) {
-	ad := dto.ToAd(requestAd)
-	if err := checkValidityAd(ad); err != nil {
+	reqAd := dto.ToAd(requestAd)
+
+	authId, ok := ctx.Value("user_id").(int)
+	if !ok {
+		return dto.ResponseAd{}, errors.New("invalid auth")
+	}
+
+	if !s.checkValidityUser(ctx, authId, id) {
+		return dto.ResponseAd{}, ad.ErrForbidden
+	}
+
+	if err := checkValidityAd(reqAd); err != nil {
 		return dto.ResponseAd{}, err
 	}
-	ad, err := s.repository.Update(ctx, ad, id)
 
+	reqAd, err := s.repository.Update(ctx, reqAd, id)
 	if err != nil {
 		return dto.ResponseAd{}, err
 	}
-	return dto.ToDto(ad), nil
+
+	reqAd.UserID = authId
+
+	return dto.ToDto(reqAd), nil
 }
 
 func (s *Service) Delete(ctx context.Context, id int) error {
@@ -72,7 +85,7 @@ func (s *Service) Delete(ctx context.Context, id int) error {
 }
 
 func checkValidityAd(ad ad.Ad) error {
-	if ad.Price <= 0 {
+	if ad.Price < 0 {
 		return errors.New("invalid price")
 	}
 	if ad.Title == "" {
@@ -80,4 +93,9 @@ func checkValidityAd(ad ad.Ad) error {
 	}
 
 	return nil
+}
+
+func (s *Service) checkValidityUser(ctx context.Context, authUser, adId int) bool {
+	ad, _ := s.repository.GetByID(ctx, adId)
+	return ad.UserID == authUser
 }

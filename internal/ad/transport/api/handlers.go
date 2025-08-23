@@ -64,6 +64,13 @@ func (h *Handler) Create() http.HandlerFunc {
 		var requestAd dto.RequestAd
 		err := json.NewDecoder(r.Body).Decode(&requestAd)
 
+		userId, ok := r.Context().Value("user_id").(int)
+		if !ok {
+			writeJSONError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		requestAd.UserID = userId
+
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid id")
 			return
@@ -99,6 +106,8 @@ func (h *Handler) Update() http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, ad.ErrNotFound) {
 				writeJSONError(w, http.StatusNotFound, err.Error())
+			} else if errors.Is(err, ad.ErrForbidden) {
+				writeJSONError(w, http.StatusForbidden, err.Error())
 			} else {
 				writeJSONError(w, http.StatusInternalServerError, err.Error())
 			}
@@ -114,6 +123,13 @@ func (h *Handler) Delete() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		params := mux.Vars(r)
 		id, err := strconv.Atoi(params["id"])
+
+		userId, ok := r.Context().Value("user_id").(int)
+		if !ok || id != userId {
+			writeJSONError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid id")
 			return
@@ -136,10 +152,3 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 	log.Printf("Status: %d | Message: %s", status, message)
 }
-
-//{
-//"title": "Дом",
-//"description": "Большой дом",
-//"price": 1000000,
-//"user_id": "2"
-//}

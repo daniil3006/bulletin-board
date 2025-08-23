@@ -16,7 +16,7 @@ type repository struct {
 
 func (r repository) GetAll(ctx context.Context) ([]user.User, error) {
 	q := `
-		select id, name, birthday
+		select id, name, email, birthday, contact
 		from users`
 	rows, err := r.client.Query(ctx, q)
 	if err != nil {
@@ -28,7 +28,7 @@ func (r repository) GetAll(ctx context.Context) ([]user.User, error) {
 
 	for rows.Next() {
 		var user user.User
-		if err = rows.Scan(&user.ID, &user.Name, &user.Birthday); err != nil {
+		if err = rows.Scan(&user.ID, &user.Name, &user.Email, &user.Birthday, &user.Contact); err != nil {
 			return nil, err
 		}
 		users = append(users, user)
@@ -43,11 +43,24 @@ func (r repository) GetAll(ctx context.Context) ([]user.User, error) {
 
 func (r repository) GetByID(ctx context.Context, id int) (user.User, error) {
 	q := `
-		select id, name, birthday
+		select id, name, email, birthday, contact
 		from users
 		where id = $1`
 	var usr user.User
-	err := r.client.QueryRow(ctx, q, id).Scan(&usr.ID, &usr.Name, &usr.Birthday)
+	err := r.client.QueryRow(ctx, q, id).Scan(&usr.ID, &usr.Name, &usr.Email, &usr.Birthday, &usr.Contact)
+	if err != nil {
+		return user.User{}, err
+	}
+	return usr, nil
+}
+
+func (r repository) GetByEmail(ctx context.Context, email string) (user.User, error) {
+	q := `
+		select id, name, email, password, birthday, contact
+		from users
+		where email = $1`
+	var usr user.User
+	err := r.client.QueryRow(ctx, q, email).Scan(&usr.ID, &usr.Name, &usr.Email, &usr.Password, &usr.Birthday, &usr.Contact)
 	if err != nil {
 		return user.User{}, err
 	}
@@ -88,12 +101,12 @@ func (r repository) GetUsersAds(ctx context.Context, userId int) ([]ad.Ad, error
 
 func (r repository) Create(ctx context.Context, newUser user.User) (user.User, error) {
 	q := `
-		insert into users (name, birthday, contact) 
-		values ($1, $2, $3)
-		returning id, name, birthday, contact`
+		insert into users (name, email, password, birthday, contact) 
+		values ($1, $2, $3, $4, $5)
+		returning id, name, email, birthday, contact`
 
-	err := r.client.QueryRow(ctx, q, newUser.Name, newUser.Birthday, newUser.Contact).
-		Scan(&newUser.ID, &newUser.Name, &newUser.Birthday, &newUser.Contact)
+	err := r.client.QueryRow(ctx, q, newUser.Name, newUser.Email, newUser.Password, newUser.Birthday, newUser.Contact).
+		Scan(&newUser.ID, &newUser.Name, &newUser.Email, &newUser.Birthday, &newUser.Contact)
 
 	if err != nil {
 		var pgErr *pgconn.PgError

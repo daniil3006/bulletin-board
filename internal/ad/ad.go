@@ -1,5 +1,7 @@
 package ad
 
+import "errors"
+
 type Ad struct {
 	ID          int    `json:"id"`
 	Title       string `json:"title"`
@@ -7,3 +9,5 @@ type Ad struct {
 	Price       int    `json:"price"`
 	UserID      int    `json:"user_id"`
 }
+
+var ErrForbidden = errors.New("forbidden")
