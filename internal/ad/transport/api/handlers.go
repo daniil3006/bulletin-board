@@ -25,7 +25,7 @@ func (h *Handler) GetAll() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		ads, err := h.service.GetAll(r.Context())
 		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, err.Error())
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -63,6 +63,10 @@ func (h *Handler) Create() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		var requestAd dto.RequestAd
 		err := json.NewDecoder(r.Body).Decode(&requestAd)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
 
 		userId, ok := r.Context().Value("user_id").(int)
 		if !ok {
@@ -70,11 +74,6 @@ func (h *Handler) Create() http.HandlerFunc {
 			return
 		}
 		requestAd.UserID = userId
-
-		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, "invalid id")
-			return
-		}
 
 		ad, err := h.service.Create(r.Context(), requestAd)
 		if err != nil {
@@ -123,12 +122,6 @@ func (h *Handler) Delete() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		params := mux.Vars(r)
 		id, err := strconv.Atoi(params["id"])
-
-		userId, ok := r.Context().Value("user_id").(int)
-		if !ok || id != userId {
-			writeJSONError(w, http.StatusForbidden, "forbidden")
-			return
-		}
 
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid id")

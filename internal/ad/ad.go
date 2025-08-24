@@ -10,4 +10,4 @@ type Ad struct {
 	UserID      int    `json:"user_id"`
 }
 
-var ErrForbidden = errors.New("forbidden")
+var ErrForbidden = errors.New("forbidden error")

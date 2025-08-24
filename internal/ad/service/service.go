@@ -67,20 +67,31 @@ func (s *Service) Update(ctx context.Context, requestAd dto.RequestAd, id int) (
 		return dto.ResponseAd{}, err
 	}
 
+	reqAd.UserID = authId
+
 	reqAd, err := s.repository.Update(ctx, reqAd, id)
 	if err != nil {
 		return dto.ResponseAd{}, err
 	}
 
-	reqAd.UserID = authId
-
 	return dto.ToDto(reqAd), nil
 }
 
 func (s *Service) Delete(ctx context.Context, id int) error {
-	if id < 0 {
+	if id <= 0 {
 		return errors.New("invalid id")
 	}
+
+	authId, ok := ctx.Value("user_id").(int)
+
+	if !ok {
+		return errors.New("invalid auth")
+	}
+
+	if !s.checkValidityUser(ctx, authId, id) {
+		return ad.ErrForbidden
+	}
+
 	return s.repository.Delete(ctx, id)
 }
 
@@ -96,6 +107,9 @@ func checkValidityAd(ad ad.Ad) error {
 }
 
 func (s *Service) checkValidityUser(ctx context.Context, authUser, adId int) bool {
-	ad, _ := s.repository.GetByID(ctx, adId)
+	ad, err := s.repository.GetByID(ctx, adId)
+	if err != nil {
+		return false
+	}
 	return ad.UserID == authUser
 }

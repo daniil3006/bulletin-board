@@ -21,11 +21,6 @@ type RequestUser struct {
 	Contact  string `json:"contact"`
 }
 
-type LoginUser struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
 func ToDto(user user.User) ResponseUser {
 	return ResponseUser{
 		ID:       user.ID,

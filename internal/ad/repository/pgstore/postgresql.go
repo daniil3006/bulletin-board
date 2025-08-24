@@ -81,11 +81,10 @@ func (r repository) Update(ctx context.Context, newAd ad.Ad, id int) (ad.Ad, err
 		set
 			title = $1,
 			description = $2,
-			price = $3,
-			user_id = $4
-		where id = $5
+			price = $3
+		where id = $4
 		returning id, title, description, price, user_id`
-	err := r.client.QueryRow(ctx, q, newAd.Title, newAd.Description, newAd.Price, newAd.UserID, id).
+	err := r.client.QueryRow(ctx, q, newAd.Title, newAd.Description, newAd.Price, id).
 		Scan(&newAd.ID, &newAd.Title, &newAd.Description, &newAd.Price, &newAd.UserID)
 	if err != nil {
 		return ad.Ad{}, err
