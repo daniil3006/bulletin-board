@@ -3,16 +3,23 @@ package service
 import (
 	"bulletin-board/internal/ad"
 	"bulletin-board/internal/ad/dto"
+	"bulletin-board/internal/redisdb"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/redis/go-redis/v9"
+	"log"
+	"time"
 )
 
 type Service struct {
 	repository ad.Repository
+	rds        redisdb.RedisClient
 }
 
-func NewService(repository ad.Repository) *Service {
-	return &Service{repository: repository}
+func NewService(repository ad.Repository, rds redisdb.RedisClient) *Service {
+	return &Service{repository: repository, rds: rds}
 }
 
 func (s *Service) GetAll(ctx context.Context) ([]dto.ResponseAd, error) {
@@ -32,10 +39,26 @@ func (s *Service) GetByID(ctx context.Context, ID int) (dto.ResponseAd, error) {
 	if ID <= 0 {
 		return dto.ResponseAd{}, errors.New("invalid id")
 	}
+
+	adObj, err := s.getAdFromRedis(ctx, ID)
+	if err != nil {
+		log.Printf("Redis error: %v", err)
+	}
+
+	if adObj.ID != 0 {
+		return dto.ToDto(adObj), nil
+	}
+
 	ad, err := s.repository.GetByID(ctx, ID)
 	if err != nil {
 		return dto.ResponseAd{}, err
 	}
+
+	err = s.addToRedis(ctx, ID, ad, 10*time.Minute)
+	if err != nil {
+		return dto.ResponseAd{}, err
+	}
+
 	return dto.ToDto(ad), nil
 }
 
@@ -74,6 +97,7 @@ func (s *Service) Update(ctx context.Context, requestAd dto.RequestAd, id int) (
 		return dto.ResponseAd{}, err
 	}
 
+	s.deleteFromRedis(ctx, id)
 	return dto.ToDto(reqAd), nil
 }
 
@@ -92,6 +116,7 @@ func (s *Service) Delete(ctx context.Context, id int) error {
 		return ad.ErrForbidden
 	}
 
+	s.deleteFromRedis(ctx, id)
 	return s.repository.Delete(ctx, id)
 }
 
@@ -112,4 +137,38 @@ func (s *Service) checkValidityUser(ctx context.Context, authUser, adId int) boo
 		return false
 	}
 	return ad.UserID == authUser
+}
+
+func (s *Service) addToRedis(ctx context.Context, ID int, adObj ad.Ad, tm time.Duration) error {
+	jsonAd, err := json.Marshal(adObj)
+	if err != nil {
+		return err
+	}
+
+	key := fmt.Sprintf("ad:%d", ID)
+	return s.rds.Rds.Set(ctx, key, jsonAd, tm).Err()
+}
+
+func (s *Service) getAdFromRedis(ctx context.Context, ID int) (ad.Ad, error) {
+	key := fmt.Sprintf("ad:%d", ID)
+	jsonAd, err := s.rds.Rds.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return ad.Ad{}, nil
+		}
+		return ad.Ad{}, err
+	}
+
+	var adObj ad.Ad
+	err = json.Unmarshal([]byte(jsonAd), &adObj)
+	if err != nil {
+		return ad.Ad{}, err
+	}
+
+	return adObj, nil
+}
+
+func (s *Service) deleteFromRedis(ctx context.Context, ID int) {
+	key := fmt.Sprintf("ad:%d", ID)
+	s.rds.Rds.Del(ctx, key)
 }

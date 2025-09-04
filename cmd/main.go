@@ -4,6 +4,7 @@ import (
 	"bulletin-board/internal/ad/repository/pgstore"
 	"bulletin-board/internal/ad/service"
 	"bulletin-board/internal/ad/transport/api"
+	"bulletin-board/internal/redisdb"
 	userPgstore "bulletin-board/internal/user/pgstore"
 	userServ "bulletin-board/internal/user/service"
 	userApi "bulletin-board/internal/user/transport/api"
@@ -37,8 +38,11 @@ func main() {
 
 	log.Println("Success connect to PostgreSQL!")
 
+	redisClient := redisdb.New(ctx)
+	log.Println("Success connect to Redis")
+
 	adRepo := pgstore.NewRepository(pool)
-	adService := service.NewService(adRepo)
+	adService := service.NewService(adRepo, *redisClient)
 	adHandler := api.NewHandler(*adService)
 
 	userRepo := userPgstore.NewRepository(pool)
@@ -48,13 +52,6 @@ func main() {
 	r := mux.NewRouter()
 	adHandler.NewRouter(r)
 	userHandler.NewRouter(r)
-
-	r.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
-		path, _ := route.GetPathTemplate()
-		methods, _ := route.GetMethods()
-		log.Printf("Route: %s Methods: %v", path, methods)
-		return nil
-	})
 
 	log.Fatal(http.ListenAndServe("localhost:8080", r))
 }
